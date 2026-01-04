@@ -606,8 +606,8 @@
           
           log(`📨 Событие: ${event.type || 'unknown'}`);
 
-  // Отслеживание состояния аватара
-if (event.type === 'avatar.started_talking') {
+ // Отслеживание состояния аватара
+if (event.type === 'avatar_start_talking') {  // ← ПОДЧЁРКИВАНИЕ вместо точки!
   state.avatarSpeaking = true;
   updateAvatarStatus('Говорит', true);
   
@@ -622,7 +622,7 @@ if (event.type === 'avatar.started_talking') {
   }
 }
 
-if (event.type === 'avatar.stopped_talking') {
+if (event.type === 'avatar_stop_talking') {  // ← ПОДЧЁРКИВАНИЕ вместо точки!
   state.avatarSpeaking = false;
   updateAvatarStatus('Слушает', false);
   
@@ -636,7 +636,6 @@ if (event.type === 'avatar.stopped_talking') {
     }
   }
 }
-
 
           if (event.type === 'conversation.turn_completed') {
             log("✅ Реплика завершена");
