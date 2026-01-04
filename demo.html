@@ -1,0 +1,800 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>WOW Agent - Smart Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .header {
+      text-align: center;
+      color: white;
+      margin-bottom: 30px;
+    }
+
+    .header h1 {
+      font-size: 42px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+
+    .header p {
+      font-size: 18px;
+      opacity: 0.9;
+    }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    }
+
+    .video-card {
+      position: relative;
+      padding: 0;
+      overflow: hidden;
+    }
+
+    #videoContainer {
+      width: 100%;
+      aspect-ratio: 16/9;
+      background: linear-gradient(135deg, #1e1e1e 0%, #2d2d2d 100%);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #videoHint {
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 16px;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .status-overlay {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      right: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      z-index: 10;
+    }
+
+    .status-badge {
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(10px);
+      color: white;
+      padding: 10px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.3s ease;
+    }
+
+    .status-badge.speaking {
+      background: rgba(239, 68, 68, 0.9);
+      animation: pulse 2s infinite;
+    }
+
+    .status-badge.listening {
+      background: rgba(34, 197, 94, 0.9);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    .status-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .timer-badge {
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(10px);
+      color: white;
+      padding: 10px 16px;
+      border-radius: 12px;
+      font-size: 18px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .controls {
+      padding: 20px 24px;
+      background: #f8f9fa;
+      border-top: 1px solid #e9ecef;
+    }
+
+    .controls-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    button:not(:disabled):hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .btn-danger {
+      background: #ef4444;
+      color: white;
+    }
+
+    .btn-secondary {
+      background: white;
+      color: #374151;
+      border: 2px solid #e5e7eb;
+    }
+
+    .btn-mic {
+      background: #10b981;
+      color: white;
+    }
+
+    .btn-mic.active {
+      background: #ef4444;
+      animation: pulse 2s infinite;
+    }
+
+    .btn-mic:disabled {
+      background: #9ca3af;
+    }
+
+    .input-field {
+      flex: 1;
+      min-width: 200px;
+      padding: 12px 16px;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      font-size: 15px;
+      transition: all 0.2s ease;
+    }
+
+    .input-field:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .role-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .role-btn {
+      padding: 16px;
+      text-align: left;
+      background: white;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .role-btn:hover {
+      border-color: #667eea;
+      background: #f9fafb;
+    }
+
+    .role-btn.active {
+      border-color: #667eea;
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+    }
+
+    .role-btn strong {
+      display: block;
+      font-size: 16px;
+      margin-bottom: 4px;
+      color: #111827;
+    }
+
+    .role-btn small {
+      color: #6b7280;
+      font-size: 13px;
+    }
+
+    .info-card {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 20px;
+    }
+
+    .info-card strong {
+      display: block;
+      color: #1e40af;
+      margin-bottom: 8px;
+      font-size: 15px;
+    }
+
+    .info-card p {
+      color: #1e3a8a;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .debug-section {
+      margin-top: 20px;
+    }
+
+    .debug-title {
+      font-size: 12px;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .debug-box {
+      background: #1f2937;
+      color: #10b981;
+      border-radius: 12px;
+      padding: 16px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+
+    .status-text {
+      padding: 12px;
+      background: #f3f4f6;
+      border-radius: 8px;
+      font-size: 14px;
+      color: #374151;
+      margin: 12px 0;
+    }
+
+    @media (max-width: 1200px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🤖 WOW Agent Demo</h1>
+      <p>Интеллектуальный AI-аватар с предотвращением перебивания</p>
+    </div>
+
+    <div class="main-grid">
+      <!-- Видео секция -->
+      <div class="card video-card">
+        <div id="videoContainer">
+          <div class="status-overlay">
+            <div id="avatarStatus" class="status-badge">
+              <div class="status-indicator"></div>
+              <span>Ожидание</span>
+            </div>
+            <div id="timer" class="timer-badge">--:--</div>
+          </div>
+          <div id="videoHint">
+            Нажмите "Старт сессии" для подключения к аватару
+          </div>
+        </div>
+
+        <div class="controls">
+          <div class="controls-row">
+            <button id="startBtn" class="btn-primary">
+              ▶️ Старт сессии
+            </button>
+            <button id="stopBtn" class="btn-danger" disabled>
+              ⏹️ Завершить
+            </button>
+            <button id="micBtn" class="btn-mic" disabled>
+              🎤 Микрофон
+            </button>
+          </div>
+          <div class="status-text" id="statusText">
+            Выберите роль и нажмите "Старт сессии"
+          </div>
+        </div>
+      </div>
+
+      <!-- Боковая панель -->
+      <div>
+        <div class="card">
+          <h3 style="margin-bottom: 16px; color: #111827;">Выберите сценарий</h3>
+          <div class="role-grid">
+            <button class="role-btn active" data-role="sales">
+              <strong>📊 Продажи</strong>
+              <small>Консультации и лидогенерация</small>
+            </button>
+            <button class="role-btn" data-role="partners">
+              <strong>🤝 Партнёры</strong>
+              <small>Рекрутинг и онбординг</small>
+            </button>
+            <button class="role-btn" data-role="investor">
+              <strong>💼 Инвестор</strong>
+              <small>Презентация проекта</small>
+            </button>
+            <button class="role-btn" data-role="support">
+              <strong>💬 Поддержка</strong>
+              <small>FAQ и помощь клиентам</small>
+            </button>
+          </div>
+
+          <div style="margin-top: 16px;">
+            <input 
+              id="nameInput" 
+              class="input-field" 
+              placeholder="Ваше имя (опционально)"
+              style="width: 100%;"
+            />
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+          <div class="info-card">
+            <strong>ℹ️ Как это работает</strong>
+            <p>
+              Аватар автоматически отслеживает свое состояние. 
+              Микрофон блокируется, когда аватар говорит, 
+              предотвращая перебивание и улучшая качество диалога.
+            </p>
+          </div>
+
+          <div class="debug-section">
+            <div class="debug-title">События LiveKit</div>
+            <div id="debugBox" class="debug-box"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+  <script>
+    // === Глобальное состояние ===
+    let state = {
+      role: "sales",
+      sessionId: null,
+      sessionToken: null,
+      room: null,
+      localMicTrack: null,
+      avatarSpeaking: false,
+      countdown: null,
+      secondsLeft: 0,
+      videoEl: null,
+      audioEl: null
+    };
+
+    // === DOM элементы ===
+    const els = {
+      startBtn: document.getElementById("startBtn"),
+      stopBtn: document.getElementById("stopBtn"),
+      micBtn: document.getElementById("micBtn"),
+      statusText: document.getElementById("statusText"),
+      timer: document.getElementById("timer"),
+      avatarStatus: document.getElementById("avatarStatus"),
+      debugBox: document.getElementById("debugBox"),
+      videoContainer: document.getElementById("videoContainer"),
+      videoHint: document.getElementById("videoHint"),
+      nameInput: document.getElementById("nameInput")
+    };
+
+    // === Утилиты ===
+    function log(msg) {
+      const timestamp = new Date().toLocaleTimeString('ru-RU');
+      const line = typeof msg === 'string' ? msg : JSON.stringify(msg, null, 2);
+      els.debugBox.textContent += `[${timestamp}] ${line}\n`;
+      els.debugBox.scrollTop = els.debugBox.scrollHeight;
+    }
+
+    function updateAvatarStatus(status, speaking = false) {
+      const badge = els.avatarStatus;
+      const indicator = badge.querySelector('.status-indicator');
+      const text = badge.querySelector('span');
+      
+      badge.className = 'status-badge';
+      if (speaking) {
+        badge.classList.add('speaking');
+        text.textContent = '🔴 Аватар говорит';
+      } else if (status === 'listening') {
+        badge.classList.add('listening');
+        text.textContent = '🟢 Аватар слушает';
+      } else {
+        text.textContent = status;
+      }
+    }
+
+    async function postJSON(url, body) {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body || {})
+      });
+      const text = await r.text();
+      let json = null;
+      try { json = text ? JSON.parse(text) : null; } catch {}
+      if (!r.ok) throw new Error(json?.error || json?.message || text);
+      return json;
+    }
+
+    // === Управление медиа ===
+    function cleanupMedia() {
+      if (state.videoEl) {
+        state.videoEl.srcObject = null;
+        state.videoEl.remove();
+        state.videoEl = null;
+      }
+      if (state.audioEl) {
+        state.audioEl.srcObject = null;
+        state.audioEl.remove();
+        state.audioEl = null;
+      }
+      if (els.videoHint) {
+        els.videoHint.style.display = 'flex';
+      }
+    }
+
+    // === Таймер ===
+    function startTimer() {
+      clearInterval(state.countdown);
+      state.secondsLeft = 60;
+      updateTimerDisplay();
+      
+      state.countdown = setInterval(async () => {
+        state.secondsLeft -= 1;
+        updateTimerDisplay();
+        
+        if (state.secondsLeft <= 0) {
+          clearInterval(state.countdown);
+          await stopSession();
+        }
+      }, 1000);
+    }
+
+    function updateTimerDisplay() {
+      const mins = Math.floor(state.secondsLeft / 60);
+      const secs = state.secondsLeft % 60;
+      els.timer.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // === LiveKit подключение ===
+    async function connectLiveKit(payload) {
+      if (!window.LivekitClient) {
+        throw new Error("LiveKit SDK не загружен");
+      }
+
+      const lkUrl = payload?.livekit_url;
+      const lkToken = payload?.livekit_client_token;
+
+      if (!lkUrl || !lkToken) {
+        throw new Error("Отсутствуют данные LiveKit");
+      }
+
+      if (state.room) {
+        try { state.room.disconnect(); } catch {}
+        state.room = null;
+      }
+      cleanupMedia();
+
+      const { Room, RoomEvent } = window.LivekitClient;
+
+      state.room = new Room({
+        adaptiveStream: true,
+        dynacast: true,
+        autoSubscribe: true,
+      });
+
+      log("🔌 Подключение к LiveKit...");
+
+      // === Обработка событий участников ===
+      state.room.on(RoomEvent.ParticipantConnected, (p) => {
+        log(`✅ Участник подключен: ${p.identity}`);
+      });
+
+      // === Обработка треков ===
+      state.room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+        const who = participant?.identity || "remote";
+        log(`🎬 Трек получен: ${track.kind} от ${who}`);
+
+        if (who === "heygen") {
+          if (track.kind === "video") {
+            if (els.videoHint) els.videoHint.style.display = 'none';
+            
+            if (state.videoEl) {
+              state.videoEl.srcObject = null;
+              state.videoEl.remove();
+            }
+
+            const el = track.attach();
+            el.autoplay = true;
+            el.playsInline = true;
+            el.style.width = "100%";
+            el.style.height = "100%";
+            el.style.objectFit = "cover";
+            els.videoContainer.appendChild(el);
+            state.videoEl = el;
+            
+            log("✅ Видео подключено");
+          }
+
+          if (track.kind === "audio") {
+            if (state.audioEl) {
+              try { state.audioEl.pause?.(); } catch {}
+              state.audioEl.srcObject = null;
+              state.audioEl.remove();
+            }
+
+            const el = track.attach();
+            el.autoplay = true;
+            el.muted = false;
+            el.volume = 1;
+            document.body.appendChild(el);
+            state.audioEl = el;
+
+            el.play()
+              .then(() => log("✅ Аудио воспроизводится"))
+              .catch(err => log(`❌ Ошибка аудио: ${err.message}`));
+          }
+        }
+      });
+
+      // === ВАЖНО: Обработка Data Messages для отслеживания состояния аватара ===
+      state.room.on(RoomEvent.DataReceived, (payload, participant) => {
+        try {
+          const data = new TextDecoder().decode(payload);
+          const event = JSON.parse(data);
+          
+          log(`📨 Событие: ${event.type || 'unknown'}`);
+
+          // Отслеживание состояния аватара
+          if (event.type === 'avatar.started_talking') {
+            state.avatarSpeaking = true;
+            updateAvatarStatus('Говорит', true);
+            
+            // Отключаем микрофон, если он был включен
+            if (state.localMicTrack && !els.micBtn.disabled) {
+              log("🔇 Микрофон автоматически отключен (аватар говорит)");
+              els.micBtn.disabled = true;
+            }
+          }
+          
+          if (event.type === 'avatar.stopped_talking') {
+            state.avatarSpeaking = false;
+            updateAvatarStatus('Слушает', false);
+            
+            // Разрешаем использование микрофона
+            if (state.localMicTrack) {
+              els.micBtn.disabled = false;
+              log("✅ Микрофон доступен");
+            }
+          }
+
+          if (event.type === 'conversation.turn_completed') {
+            log("✅ Реплика завершена");
+          }
+        } catch (e) {
+          log(`❌ Ошибка обработки события: ${e.message}`);
+        }
+      });
+
+      state.room.on(RoomEvent.Disconnected, (reason) => {
+        log(`🔌 Отключено: ${reason || 'unknown'}`);
+        cleanupMedia();
+        state.room = null;
+      });
+
+      await state.room.connect(lkUrl, lkToken);
+
+      if (typeof state.room.startAudio === "function") {
+        try {
+          await state.room.startAudio();
+          log("🔊 Аудио запущено");
+        } catch (e) {
+          log(`⚠️ Аудио заблокировано: ${e.message}`);
+        }
+      }
+
+      els.micBtn.disabled = false;
+      updateAvatarStatus('Подключен');
+      log(`✅ Подключено к комнате: ${state.room.name}`);
+    }
+
+    // === Управление сессией ===
+    async function startSession() {
+      els.statusText.textContent = "⏳ Получение токена сессии...";
+      els.debugBox.textContent = "";
+
+      try {
+        log("🚀 Запуск сессии...");
+        
+        const tokenData = await postJSON("/api/token", { language: "ru" });
+        state.sessionId = tokenData.session_id;
+        state.sessionToken = tokenData.session_token;
+        
+        log(`✅ Токен получен: ${state.sessionId}`);
+        els.statusText.textContent = "⏳ Запуск сессии...";
+
+        const startData = await postJSON("/api/start", { 
+          session_token: state.sessionToken 
+        });
+        
+        const payload = startData?.data ?? startData;
+        log("✅ Сессия запущена");
+
+        await connectLiveKit(payload);
+
+        els.startBtn.disabled = true;
+        els.stopBtn.disabled = false;
+        els.statusText.textContent = `✅ Сессия активна (роль: ${state.role})`;
+        
+        startTimer();
+      } catch (e) {
+        els.statusText.textContent = `❌ Ошибка: ${e.message}`;
+        log(`❌ ОШИБКА: ${e.message}`);
+        console.error(e);
+      }
+    }
+
+    async function stopSession() {
+      els.statusText.textContent = "⏳ Завершение сессии...";
+      
+      try {
+        log("🛑 Остановка сессии...");
+        
+        await postJSON("/api/stop", { 
+          session_id: state.sessionId, 
+          session_token: state.sessionToken 
+        });
+
+        if (state.room) {
+          try { state.room.disconnect(); } catch {}
+          state.room = null;
+        }
+        
+        cleanupMedia();
+        clearInterval(state.countdown);
+
+        els.startBtn.disabled = false;
+        els.stopBtn.disabled = true;
+        els.micBtn.disabled = true;
+        els.micBtn.classList.remove('active');
+        
+        updateAvatarStatus('Завершено');
+        els.statusText.textContent = "✅ Сессия завершена. Можете начать новую.";
+        log("✅ Сессия успешно завершена");
+      } catch (e) {
+        els.statusText.textContent = `❌ Ошибка: ${e.message}`;
+        log(`❌ Ошибка остановки: ${e.message}`);
+      }
+    }
+
+    // === Управление микрофоном ===
+    async function toggleMicrophone() {
+      try {
+        if (!state.room) {
+          throw new Error("Сначала запустите сессию");
+        }
+
+        // Проверяем, не говорит ли аватар
+        if (state.avatarSpeaking) {
+          log("⚠️ Микрофон заблокирован: аватар говорит");
+          els.statusText.textContent = "⚠️ Дождитесь, пока аватар закончит говорить";
+          return;
+        }
+
+        if (state.localMicTrack) {
+          // Выключаем микрофон
+          try { 
+            await state.room.localParticipant.unpublishTrack(state.localMicTrack); 
+          } catch {}
+          try { 
+            state.localMicTrack.stop(); 
+          } catch {}
+          state.localMicTrack = null;
+
+          els.micBtn.classList.remove('active');
+          els.micBtn.textContent = "🎤 Микрофон";
+          log("🔇 Микрофон выключен");
+        } else {
+          // Включаем микрофон
+          log("🎤 Запрос доступа к микрофону...");
+          
+          state.localMicTrack = await window.LivekitClient.createLocalAudioTrack({
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          });
+
+          await state.room.localParticipant.publishTrack(state.localMicTrack);
+
+          els.micBtn.classList.add('active');
+          els.micBtn.textContent = "🔴 Микрофон (вкл)";
+          log("✅ Микрофон включен");
+        }
+      } catch (e) {
+        log(`❌ Ошибка микрофона: ${e.message}`);
+        els.statusText.textContent = `❌ Ошибка: ${e.message}`;
+      }
+    }
+
+    // === Выбор роли ===
+    document.querySelectorAll('.role-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.role = btn.dataset.role;
+        log(`📋 Выбрана роль: ${state.role}`);
+      });
+    });
+
+    // === События кнопок ===
+    els.startBtn.addEventListener('click', startSession);
+    els.stopBtn.addEventListener('click', stopSession);
+    els.micBtn.addEventListener('click', toggleMicrophone);
+
+    // Инициализация
+    log("✨ WOW Agent Demo загружен");
+    log("💡 Выберите роль и нажмите 'Старт сессии'");
+  </script>
+</body>
+</html>
