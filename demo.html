@@ -472,20 +472,11 @@
                         resolve();
                     }
                 }, 100);
-                setTimeout(() => {
-                    clearInterval(checkInterval);
-                    console.warn('LiveKit SDK timeout');
-                    resolve();
-                }, 5000);
             });
         }
 
-        // КОНФИГУРАЦИЯ
         const CONFIG = {
             API_URL: window.location.origin,
-            AVATAR_ID: '9650a758-1085-4d49-8bf3-f347565ec229',
-            VOICE_ID: 'c23719ef-d070-42ee-9cd9-4b867c621671',
-            CONTEXT_ID: '0af664ad-8b66-4f6e-91ab-3b3245d4d72d',
             LANGUAGE: 'ru',
             TOKEN_ENDPOINT: '/api/token',
             START_ENDPOINT: '/api/start',
@@ -499,11 +490,9 @@
             sessionId: null,
             sessionToken: null,
             startTime: null,
-            isListening: false,
-            mediaStream: null,
+            livekitRoom: null,
             timerInterval: null,
             formSubmitted: false,
-            livekitRoom: null,
         };
 
         const screens = {
@@ -513,175 +502,122 @@
             thankYou: document.getElementById('thankYouScreen'),
         };
 
-        const buttons = {
-            start: document.getElementById('startBtn'),
-            close: document.getElementById('closeBtn'),
-            send: document.getElementById('sendBtn'),
-            submitForm: document.getElementById('submitFormBtn'),
-            chatAgain: document.getElementById('chatAgainBtn'),
-        };
-
-        const inputs = { message: document.getElementById('messageInput') };
-
         const displays = {
-            statusBadge: document.getElementById('statusBadge'),
             statusText: document.getElementById('statusText'),
             timer: document.getElementById('timer'),
             instructionBanner: document.getElementById('instructionBanner'),
             successMessage: document.getElementById('successMessage'),
         };
 
-        const forms = { lead: document.getElementById('leadForm') };
-        const videoElement = document.getElementById('avatarVideo');
-
         function showScreen(screenName) {
-            Object.values(screens).forEach(screen => screen.classList.add('hidden'));
+            Object.values(screens).forEach(s => s.classList.add('hidden'));
             screens[screenName].classList.remove('hidden');
         }
 
-        async function getSessionToken() {
-            try {
-                const response = await fetch(`${CONFIG.API_URL}${CONFIG.TOKEN_ENDPOINT}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ language: CONFIG.LANGUAGE })
-                });
+        // Инициализация LiveKit и микрофона
+        async function connectToLiveKit(url, token) {
+            const room = new LiveKitClient.Room({
+                adaptiveStream: true,
+                dynacast: true,
+            });
 
-                if (!response.ok) throw new Error(`Token error: ${response.status}`);
-                const data = await response.json();
-                return { 
-                    sessionId: data.session_id, 
-                    sessionToken: data.session_token,
-                    wsUrl: data.ws_url || 'wss://cloud.livekit.io'
-                };
-            } catch (error) {
-                console.error('Ошибка получения токена:', error);
-                alert('Ошибка подключения. Попробуйте ещё раз.');
-                showScreen('welcome');
-                throw error;
-            }
-        }
-
-        async function initializeLiveKit(sessionToken, wsUrl) {
-            try {
-                // Проверяем что LiveKit загружен
-                if (typeof LiveKitClient === 'undefined') {
-                    throw new Error('LiveKit SDK не загружен');
+            room.on(LiveKitClient.RoomEvent.TrackSubscribed, (track) => {
+                if (track.kind === 'video' || track.kind === 'audio') {
+                    track.attach(document.getElementById('avatarVideo'));
                 }
+            });
 
-                // Создаем Room объект
-                const room = new LiveKitClient.Room({
-                    autoSubscribe: true
-                });
+            // Слушаем события от аватара (когда он начинает/перестает говорить)
+            room.on(LiveKitClient.RoomEvent.DataReceived, (payload) => {
+                const decoder = new TextDecoder();
+                const data = JSON.parse(decoder.decode(payload));
+                
+                if (data.type === 'avatar_talking_status') {
+                    updateUIStatus(data.status === 'talking');
+                }
+            });
 
-                // Обработка видео трека аватара
-                room.on(LiveKitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
-                    console.log(`Track подписан: ${track.kind}`);
-
-                    if (track.kind === 'video') {
-                        track.attach(videoElement);
-                        console.log('✅ Видео аватара подключено');
-                    }
-
-                    if (track.kind === 'audio') {
-                        track.attach();
-                        console.log('✅ Аудио подключено');
-                    }
-                });
-
-                // Обработка ошибок соединения
-                room.on(LiveKitClient.RoomEvent.ConnectionStateChanged, (state) => {
-                    console.log(`Соединение: ${state}`);
-                    if (state === LiveKitClient.ConnectionState.Connected) {
-                        displays.statusText.textContent = 'Вы можете говорить';
-                        updateStatus(false);
-                    }
-                });
-
-                // Подключаемся к LiveKit
-                console.log('Подключение к LiveKit...');
-                await room.connect(wsUrl, sessionToken);
-                sessionState.livekitRoom = room;
-
-                console.log('✅ LiveKit подключено');
-                return room;
-            } catch (error) {
-                console.error('LiveKit ошибка:', error);
-                throw error;
-            }
+            await room.connect(url, token);
+            
+            // ПУБЛИКАЦИЯ МИКРОФОНА (Критически важно!)
+            const audioTrack = await LiveKitClient.createLocalAudioTrack({
+                echoCancellation: true,
+                noiseSuppression: true,
+            });
+            await room.localParticipant.publishTrack(audioTrack);
+            
+            return room;
         }
 
         async function startSession() {
             try {
                 showScreen('loading');
-                
-                // Ждем загрузки LiveKit перед началом
                 await waitForLiveKit();
 
-                const { sessionId, sessionToken, wsUrl } = await getSessionToken();
-                
-                sessionState.sessionId = sessionId;
-                sessionState.sessionToken = sessionToken;
-
-                // Инициализируем LiveKit
-                await initializeLiveKit(sessionToken, wsUrl);
-
-                const response = await fetch(`${CONFIG.API_URL}${CONFIG.START_ENDPOINT}`, {
+                // 1. Получаем токен сессии
+                const tokenRes = await fetch(`${CONFIG.API_URL}${CONFIG.TOKEN_ENDPOINT}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ session_token: sessionToken })
+                    body: JSON.stringify({ language: CONFIG.LANGUAGE })
                 });
+                const tokenData = await tokenRes.json();
+                
+                sessionState.sessionId = tokenData.session_id;
+                sessionState.sessionToken = tokenData.session_token;
 
-                if (!response.ok) throw new Error(`Start error: ${response.status}`);
+                // 2. Запускаем сессию на сервере и получаем данные LiveKit
+                const startRes = await fetch(`${CONFIG.API_URL}${CONFIG.START_ENDPOINT}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_token: sessionState.sessionToken })
+                });
+                const startData = await startRes.json();
+                
+                // Важно: данные HeyGen обычно лежат в поле .data
+                const lkData = startData.data || startData;
 
-                await enableMicrophone();
+                // 3. Подключаемся к видео-комнате
+                sessionState.livekitRoom = await connectToLiveKit(lkData.livekit_url, lkData.livekit_client_token);
 
+                // Настройка интерфейса
                 sessionState.isActive = true;
                 sessionState.startTime = Date.now();
-                showScreen('chat');
                 startTimer();
-                updateStatus(true);
+                showScreen('chat');
+                updateUIStatus(false); // По умолчанию "можно говорить"
 
-                console.log('✅ Сессия запущена:', { sessionId, sessionToken });
             } catch (error) {
-                console.error('Ошибка запуска сессии:', error);
-                alert('Не удалось подключиться к агенту.');
+                console.error('Ошибка старта:', error);
+                alert('Ошибка подключения: ' + error.message);
                 showScreen('welcome');
             }
         }
 
-        async function enableMicrophone() {
-            try {
-                sessionState.mediaStream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-                });
-                console.log('✅ Микрофон включен');
-            } catch (error) {
-                console.error('Ошибка доступа к микрофону:', error);
-                alert('Пожалуйста, разрешите доступ к микрофону');
-                throw error;
+        function updateUIStatus(isAvatarTalking) {
+            const input = document.getElementById('messageInput');
+            const btn = document.getElementById('sendBtn');
+            
+            if (isAvatarTalking) {
+                displays.statusText.textContent = 'Аватар говорит...';
+                displays.instructionBanner.style.display = 'none';
+                input.disabled = true;
+                btn.disabled = true;
+            } else {
+                displays.statusText.textContent = 'Вы можете говорить';
+                displays.instructionBanner.style.display = 'block';
+                input.disabled = false;
+                btn.disabled = false;
             }
         }
 
-        function startTimer() {
-            sessionState.timerInterval = setInterval(() => {
-                const elapsed = Math.floor((Date.now() - sessionState.startTime) / 1000);
-                const minutes = String(Math.floor(elapsed / 60)).padStart(2, '0');
-                const seconds = String(elapsed % 60).padStart(2, '0');
-                displays.timer.textContent = `${minutes}:${seconds}`;
-
-                if (elapsed >= CONFIG.MAX_SESSION_TIME) stopSession();
-            }, 1000);
-        }
-
         async function stopSession() {
+            if (!sessionState.isActive) return;
+            
             try {
                 if (sessionState.timerInterval) clearInterval(sessionState.timerInterval);
-
-                // Отключаемся от LiveKit
+                
                 if (sessionState.livekitRoom) {
-                    await sessionState.livekitRoom.disconnect();
-                    sessionState.livekitRoom = null;
+                    sessionState.livekitRoom.disconnect();
                 }
 
                 await fetch(`${CONFIG.API_URL}${CONFIG.STOP_ENDPOINT}`, {
@@ -693,126 +629,68 @@
                     })
                 });
 
-                if (sessionState.mediaStream) {
-                    sessionState.mediaStream.getTracks().forEach(track => track.stop());
-                }
-
                 sessionState.isActive = false;
                 showScreen('thankYou');
-                resetFormState();
-
-                console.log('✅ Сессия завершена');
             } catch (error) {
-                console.error('Ошибка остановки сессии:', error);
+                console.error('Ошибка остановки:', error);
+                showScreen('thankYou');
             }
         }
 
-        function updateStatus(isListening) {
-            sessionState.isListening = isListening;
-            
-            if (isListening) {
-                displays.statusText.textContent = 'Слушайте аватара';
-                displays.instructionBanner.style.display = 'none';
-                inputs.message.disabled = true;
-                buttons.send.disabled = true;
-            } else {
-                displays.statusText.textContent = 'Вы можете говорить';
-                displays.instructionBanner.style.display = 'block';
-                inputs.message.disabled = false;
-                buttons.send.disabled = false;
-            }
+        // Таймер и прочие вспомогательные функции
+        function startTimer() {
+            sessionState.timerInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - sessionState.startTime) / 1000);
+                const min = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                const sec = String(elapsed % 60).padStart(2, '0');
+                displays.timer.textContent = `${min}:${sec}`;
+                if (elapsed >= CONFIG.MAX_SESSION_TIME) stopSession();
+            }, 1000);
         }
 
+        // Обработка текстовых сообщений
         async function sendMessage() {
-            const message = inputs.message.value.trim();
-            if (!message || !sessionState.isActive) return;
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+            if (!text) return;
 
             try {
-                inputs.message.value = '';
-                buttons.send.disabled = true;
-
+                input.value = '';
                 await fetch(`${CONFIG.API_URL}${CONFIG.SEND_EVENT_ENDPOINT}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         session_token: sessionState.sessionToken,
                         event_type: 'user_message',
-                        data: { text: message }
+                        data: { text: text }
                     })
                 });
-
-                updateStatus(true);
-                console.log('✅ Сообщение отправлено:', message);
-            } catch (error) {
-                console.error('Ошибка отправки:', error);
-                buttons.send.disabled = false;
-            }
+            } catch (e) { console.error('Ошибка отправки:', e); }
         }
 
-        async function submitLeadForm(e) {
+        // Привязка событий
+        document.getElementById('startBtn').addEventListener('click', startSession);
+        document.getElementById('closeBtn').addEventListener('click', stopSession);
+        document.getElementById('sendBtn').addEventListener('click', sendMessage);
+        document.getElementById('chatAgainBtn').addEventListener('click', () => {
+            location.reload(); // Простой способ сбросить состояние
+        });
+        document.getElementById('messageInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        // Лид-форма (демо-логика)
+        document.getElementById('leadForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+            const btn = e.target.querySelector('button');
+            btn.disabled = true;
+            btn.textContent = 'Отправка...';
             
-            if (sessionState.formSubmitted) return;
-            sessionState.formSubmitted = true;
-
-            const formData = new FormData(forms.lead);
-            const data = {
-                name: formData.get('name'),
-                phone: formData.get('phone'),
-                email: formData.get('email'),
-            };
-
-            try {
-                buttons.submitForm.disabled = true;
-                buttons.submitForm.textContent = 'Отправляется...';
-
-                console.log('📤 Отправка формы:', data);
-                await new Promise(resolve => setTimeout(resolve, 1000));
-
-                displays.successMessage.classList.add('show');
-                forms.lead.reset();
-                
-                setTimeout(() => {
-                    displays.successMessage.classList.remove('show');
-                    buttons.submitForm.disabled = false;
-                    buttons.submitForm.textContent = 'Отправить заявку';
-                }, 3000);
-
-                console.log('✅ Форма отправлена');
-            } catch (error) {
-                console.error('Ошибка отправки формы:', error);
-                sessionState.formSubmitted = false;
-                buttons.submitForm.disabled = false;
-                buttons.submitForm.textContent = 'Отправить заявку';
-            }
-        }
-
-        function resetFormState() {
-            sessionState.formSubmitted = false;
-            displays.successMessage.classList.remove('show');
-            forms.lead.reset();
-            buttons.submitForm.disabled = false;
-            buttons.submitForm.textContent = 'Отправить заявку';
-        }
-
-        buttons.start.addEventListener('click', startSession);
-        buttons.close.addEventListener('click', stopSession);
-        buttons.send.addEventListener('click', sendMessage);
-        forms.lead.addEventListener('submit', submitLeadForm);
-        buttons.chatAgain.addEventListener('click', () => {
-            resetFormState();
-            startSession();
+            await new Promise(r => setTimeout(r, 1000)); // Имитация запроса
+            
+            document.getElementById('successMessage').classList.add('show');
+            e.target.reset();
         });
-
-        inputs.message.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !buttons.send.disabled) sendMessage();
-        });
-
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && sessionState.isActive) stopSession();
-        });
-
-        console.log('✅ WOW-Agent Widget готов');
     </script>
 </body>
 </html>
