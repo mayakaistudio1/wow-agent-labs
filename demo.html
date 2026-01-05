@@ -1,21 +1,24 @@
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WOW-Agent - Interactive Dialog</title>
-    <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/index.umd.js"></script>
+    <title>WOW-Agent - AI Dialog Widget</title>
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+
         :root {
             --accent: #00B8D4;
             --dark: #1A1A1A;
             --dark-lighter: #2D2D2D;
             --white: #FFFFFF;
             --gray: rgba(255, 255, 255, 0.7);
+            --gray-light: rgba(255, 255, 255, 0.5);
             --border-radius: 12px;
+            --transition: all 0.3s ease;
         }
+
         body {
             font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: var(--dark);
@@ -24,24 +27,28 @@
             height: 100vh;
         }
 
+        /* --- ЭКРАН 1: ПРИВЕТСТВИЕ --- */
         #welcomeScreen {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
             background: linear-gradient(135deg, var(--dark) 0%, var(--dark-lighter) 100%);
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             text-align: center; padding: 40px 20px; z-index: 1000;
         }
         #welcomeScreen.hidden { display: none; }
-        #welcomeScreen h1 { font-size: 48px; font-weight: 900; margin-bottom: 10px; }
+        #welcomeScreen h1 { font-size: 48px; font-weight: 900; line-height: 1.2; margin-bottom: 10px; }
         #welcomeScreen h1 .accent { color: var(--accent); }
         #welcomeScreen p { font-size: 18px; color: var(--gray); max-width: 500px; margin-bottom: 40px; }
+        
         #startBtn {
             background: var(--accent); color: var(--dark); padding: 18px 50px;
             border: none; border-radius: var(--border-radius); font-size: 18px; font-weight: 700;
-            cursor: pointer;
+            cursor: pointer; transition: var(--transition);
         }
-        #startBtn:hover { background: #00A3C0; }
-        #startBtn:disabled { opacity: 0.5; }
+        #startBtn:hover { background: #00A3C0; transform: translateY(-2px); }
+        #startBtn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+        /* --- ЭКРАН 2: ЗАГРУЗКА --- */
         #loadingScreen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.9); display: flex; flex-direction: column;
@@ -55,6 +62,7 @@
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
+        /* --- ЭКРАН 3: ДИАЛОГ --- */
         #chatScreen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #000; display: flex; flex-direction: column; z-index: 1002;
@@ -65,7 +73,10 @@
             flex: 1; position: relative; background: #000;
             display: flex; align-items: center; justify-content: center; overflow: hidden;
         }
-        #videoContainer video { width: 100%; height: 100%; object-fit: cover; }
+        /* Сюда LiveKit будет вставлять <video> */
+        #videoContainer video {
+            width: 100%; height: 100%; object-fit: cover;
+        }
 
         .chat-header {
             position: absolute; top: 20px; left: 20px; right: 20px;
@@ -73,18 +84,25 @@
         }
 
         #statusBadge {
-            background: rgba(0, 0, 0, 0.8); padding: 12px 20px;
-            border-radius: var(--border-radius); font-weight: 600;
-            display: flex; align-items: center; gap: 8px;
+            background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(10px);
+            padding: 12px 20px; border-radius: var(--border-radius);
+            font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px;
+            transition: all 0.3s;
         }
-        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #888; }
+        
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #gray; }
+        
+        /* Состояния статуса */
         #statusBadge.listening .status-dot { background: #00FF00; animation: pulse-dot 1.5s infinite; }
         #statusBadge.speaking .status-dot { background: #FF0000; animation: pulse-dot 1.5s infinite; }
+        #statusBadge.speaking { border: 1px solid #FF0000; }
+
         @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
         #timer {
             background: rgba(0, 0, 0, 0.8); padding: 12px 20px;
-            border-radius: var(--border-radius); color: var(--accent); font-family: monospace;
+            border-radius: var(--border-radius); color: var(--accent);
+            font-weight: 600; font-family: monospace;
         }
 
         #closeBtn {
@@ -93,55 +111,28 @@
         }
         #closeBtn:hover { background: rgba(255, 0, 0, 0.5); }
 
-        /* НИЖНЯЯ ПАНЕЛЬ */
-        .bottom-panel {
-            position: absolute; bottom: 0; left: 0; right: 0;
-            background: rgba(0,0,0,0.95); padding: 15px;
-            border-top: 1px solid rgba(255,255,255,0.1); z-index: 5;
-            display: flex; gap: 10px; align-items: flex-end;
+        #instructionBanner {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            background: var(--accent); color: var(--dark); padding: 12px 24px;
+            border-radius: var(--border-radius); font-weight: 600; z-index: 10;
+            box-shadow: 0 4px 15px rgba(0,184,212, 0.4);
+            transition: all 0.3s;
+            opacity: 0; pointer-events: none;
         }
+        #instructionBanner.visible { opacity: 1; bottom: 40px; }
 
-        /* ЧАТ СЛЕВА */
-        .chat-wrapper {
-            flex: 1; max-width: 450px;
-        }
-        #chatInput {
-            width: 100%; padding: 12px; background: rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.2); border-radius: 8px;
-            color: white; font-size: 14px;
-        }
-        #chatInput:focus { outline: none; border-color: var(--accent); }
-        #chatInput:disabled { opacity: 0.5; cursor: not-allowed; }
-        #sendMessageBtn {
-            width: 100%; padding: 10px; margin-top: 8px;
-            background: var(--accent); color: var(--dark); border: none;
-            border-radius: 8px; font-weight: bold; cursor: pointer;
-        }
-        #sendMessageBtn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        /* ИСТОРИЯ СПРАВА */
-        #transcript {
-            flex: 1; max-width: 350px; height: 150px;
-            background: rgba(0,0,0,0.8); border: 1px solid var(--accent);
-            border-radius: 8px; padding: 10px; overflow-y: auto; font-size: 11px;
-        }
-        #transcript h4 { color: var(--accent); margin-bottom: 8px; font-size: 12px; border-bottom: 1px solid var(--accent); padding-bottom: 5px; }
-        .transcript-msg { margin-bottom: 8px; padding: 6px; border-radius: 4px; }
-        .transcript-msg.user { background: rgba(0,184,212,0.15); color: #00B8D4; }
-        .transcript-msg.avatar { background: rgba(255,107,107,0.15); color: #FF6B6B; }
-        .transcript-time { font-size: 9px; color: #666; margin-top: 2px; }
-
+        /* --- ЭКРАН 4: СПАСИБО --- */
         #thankYouScreen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: linear-gradient(135deg, var(--dark) 0%, var(--dark-lighter) 100%);
             display: flex; align-items: center; justify-content: center;
-            z-index: 1003; padding: 40px 20px;
+            overflow-y: auto; z-index: 1003; padding: 40px 20px;
         }
         #thankYouScreen.hidden { display: none; }
 
         .thank-you-card {
             background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 20px; padding: 40px; max-width: 600px; text-align: center;
+            border-radius: 20px; padding: 40px; max-width: 500px; text-align: center;
         }
         .thank-you-card input {
             width: 100%; padding: 15px; margin-bottom: 10px;
@@ -154,34 +145,25 @@
         }
         .btn-primary { background: var(--accent); color: var(--dark); }
         .btn-outline { background: transparent; border: 2px solid var(--accent) !important; color: var(--accent); }
-        .btn-secondary { background: rgba(0,184,212,0.2); color: var(--accent); margin-top: 8px; }
-
-        .transcript-box {
-            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 8px; padding: 15px; margin: 20px 0; text-align: left; max-height: 300px;
-            overflow-y: auto; font-size: 13px;
-        }
-        .transcript-box h3 { color: var(--accent); margin-bottom: 10px; }
-        .tr-item { margin-bottom: 8px; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 4px; }
-        .tr-item strong { color: var(--accent); }
     </style>
 </head>
 <body>
 
     <div id="welcomeScreen">
         <h1>ВАШ ПЕРСОНАЛЬНЫЙ<br><span class="accent">WOW-АГЕНТ</span></h1>
-        <p>Голос + Чат одновременно + История</p>
+        <p>Интерактивная демо-версия с новым дизайном.</p>
         <button id="startBtn">🎤 Начать разговор</button>
-        <small style="margin-top: 20px; color: #666;">Пишите И говорите одновременно</small>
+        <small style="margin-top: 20px; color: #666;">Микрофон включится автоматически</small>
     </div>
 
     <div id="loadingScreen" class="hidden">
         <div class="spinner"></div>
-        <p id="loadingText">Подключение...</p>
+        <p id="loadingText">Подключение к серверу...</p>
     </div>
 
     <div id="chatScreen" class="hidden">
-        <div id="videoContainer"></div>
+        <div id="videoContainer">
+            </div>
 
         <div class="chat-header">
             <div id="statusBadge">
@@ -189,46 +171,28 @@
                 <span id="statusText">Подключение...</span>
             </div>
             <div id="timer">00:00</div>
-            <button id="closeBtn">✕</button>
+            <button id="closeBtn" title="Завершить">✕</button>
         </div>
 
-        <div class="bottom-panel">
-            <div class="chat-wrapper">
-                <input id="chatInput" type="text" placeholder="Напишите сообщение..." disabled>
-                <button id="sendMessageBtn" disabled>📤 Отправить</button>
-            </div>
-
-            <div id="transcript">
-                <h4>📝 История</h4>
-                <div id="transcriptList"></div>
-            </div>
-        </div>
+        <div id="instructionBanner">🎤 Говорите, вас слышно</div>
     </div>
 
     <div id="thankYouScreen" class="hidden">
         <div class="thank-you-card">
-            <h2>Спасибо за разговор! 🎉</h2>
-            <p>Оставьте контакты и мы свяжемся с вами.</p>
-
-            <!-- ИСТОРИЯ ДИАЛОГА -->
-            <div class="transcript-box">
-                <h3>📝 Полная История Диалога</h3>
-                <div id="finalTranscript"></div>
-            </div>
-
+            <h2>Сессия завершена</h2>
+            <p>Спасибо за общение! Оставьте контакты, и мы свяжемся с вами.</p>
+            <br>
             <form id="leadForm">
                 <input type="text" placeholder="Ваше имя">
                 <input type="email" placeholder="Email">
                 <button type="submit" class="btn-primary">Отправить заявку</button>
             </form>
-
-            <button id="downloadTranscript" class="btn-secondary">📥 Скачать Трансляцию (JSON)</button>
-            <button id="copyTranscript" class="btn-secondary">📋 Копировать Текст</button>
             <button id="reloadBtn" class="btn-outline">Начать заново</button>
         </div>
     </div>
 
     <script>
+        // === Глобальное состояние ===
         let state = {
             sessionId: null,
             sessionToken: null,
@@ -238,9 +202,10 @@
             audioEl: null,
             countdown: null,
             secondsLeft: 0,
-            transcripts: []
+            isAvatarSpeaking: false
         };
 
+        // === Элементы интерфейса ===
         const ui = {
             screens: {
                 welcome: document.getElementById('welcomeScreen'),
@@ -255,128 +220,60 @@
             statusText: document.getElementById('statusText'),
             timer: document.getElementById('timer'),
             videoContainer: document.getElementById('videoContainer'),
-            loadingText: document.getElementById('loadingText'),
-            chatInput: document.getElementById('chatInput'),
-            sendMessageBtn: document.getElementById('sendMessageBtn'),
-            transcript: document.getElementById('transcript'),
-            transcriptList: document.getElementById('transcriptList'),
-            finalTranscript: document.getElementById('finalTranscript'),
-            leadForm: document.getElementById('leadForm'),
-            downloadBtn: document.getElementById('downloadTranscript'),
-            copyBtn: document.getElementById('copyTranscript')
+            instructionBanner: document.getElementById('instructionBanner'),
+            loadingText: document.getElementById('loadingText')
         };
 
+        // === Переключение экранов ===
         function showScreen(name) {
             Object.values(ui.screens).forEach(el => el.classList.add('hidden'));
             ui.screens[name].classList.remove('hidden');
         }
 
+        // === Обновление статуса UI ===
         function updateStatus(status) {
+            ui.statusBadge.className = ''; // Сброс классов
+            
             if (status === 'speaking') {
-                ui.statusBadge.className = 'speaking';
-                ui.statusText.textContent = '🔴 Аватар говорит';
+                ui.statusBadge.classList.add('speaking');
+                ui.statusText.textContent = 'Аватар говорит';
+                ui.instructionBanner.textContent = '👂 Слушайте...';
+                ui.instructionBanner.classList.add('visible');
+                ui.instructionBanner.style.background = '#ef4444'; // Красный
             } else if (status === 'listening') {
-                ui.statusBadge.className = 'listening';
-                ui.statusText.textContent = '🟢 Слушает вас';
+                ui.statusBadge.classList.add('listening');
+                ui.statusText.textContent = 'Слушает вас';
+                ui.instructionBanner.textContent = '🎤 Говорите сейчас!';
+                ui.instructionBanner.classList.add('visible');
+                ui.instructionBanner.style.background = '#00B8D4'; // Акцентный
             } else {
                 ui.statusText.textContent = status;
+                ui.instructionBanner.classList.remove('visible');
             }
-            // ⭐ ВСЕГДА РАЗБЛОКИРОВАННЫЙ ЧАТ!
-            ui.chatInput.disabled = false;
-            ui.sendMessageBtn.disabled = false;
         }
 
-        // ⭐ ДОБАВИТЬ В ИСТОРИЮ
-        function addTranscript(message, sender) {
-            const time = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-            state.transcripts.push({ message, sender, time });
-            
-            const div = document.createElement('div');
-            div.className = `transcript-msg ${sender}`;
-            div.innerHTML = `<strong>${sender === 'user' ? '👤' : '🤖'}</strong> ${message}<div class="transcript-time">${time}</div>`;
-            ui.transcriptList.appendChild(div);
-            ui.transcriptList.scrollTop = ui.transcriptList.scrollHeight;
-        }
-
-        // ⭐ ОТПРАВИТЬ СООБЩЕНИЕ (БЕЗ БЛОКИРОВКИ)
-        async function sendMessage() {
-            const message = ui.chatInput.value.trim();
-            if (!message) return;
-
-            addTranscript(message, 'user');
-            ui.chatInput.value = '';
-
-            fetch('/api/send-event', {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({
-                    session_token: state.sessionToken,
-                    event_type: 'user_message',
-                    data: { text: message, type: 'text' }
-                })
-            }).catch(e => console.error('Send error:', e));
-        }
-
-        // ⭐ ПОКАЗАТЬ ФИНАЛЬНУЮ ИСТОРИЮ
-        function showFinalTranscript() {
-            ui.finalTranscript.innerHTML = '';
-            state.transcripts.forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'tr-item';
-                div.innerHTML = `<strong>${item.sender === 'user' ? '👤 Вы' : '🤖 Аватар'} (${item.time}):</strong><br>${item.message}`;
-                ui.finalTranscript.appendChild(div);
-            });
-        }
-
-        // ⭐ СКАЧАТЬ JSON
-        function downloadTranscript() {
-            const data = {
-                timestamp: new Date().toISOString(),
-                duration: state.secondsLeft,
-                messages: state.transcripts
-            };
-            const json = JSON.stringify(data, null, 2);
-            const blob = new Blob([json], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `transcript-${Date.now()}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-
-        // ⭐ КОПИРОВАТЬ ТЕКСТ
-        function copyTranscript() {
-            let text = 'WOW-Agent Dialog Transcript\n';
-            text += '=' .repeat(40) + '\n\n';
-            state.transcripts.forEach(item => {
-                text += `[${item.time}] ${item.sender === 'user' ? 'USER' : 'AVATAR'}: ${item.message}\n`;
-            });
-            text += '\n' + '='.repeat(40) + '\n';
-            text += `Duration: ${state.secondsLeft}s\n`;
-            text += `Exported: ${new Date().toLocaleString()}\n`;
-            
-            navigator.clipboard.writeText(text).then(() => {
-                alert('✅ Трансляция скопирована в буфер обмена!');
-            }).catch(() => {
-                alert('❌ Ошибка копирования');
-            });
-        }
-
+        // === API Helper ===
         async function postJSON(url, body) {
-            const r = await fetch(url, {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify(body || {})
-            });
-            if (!r.ok) throw new Error(`HTTP ${r.status}`);
-            const text = await r.text();
-            return text ? JSON.parse(text) : {};
+            try {
+                const r = await fetch(url, {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify(body || {})
+                });
+                const text = await r.text();
+                if (!r.ok) throw new Error(text);
+                return text ? JSON.parse(text) : {};
+            } catch (e) {
+                console.error("API Error:", e);
+                throw e;
+            }
         }
 
+        // === Таймер ===
         function startTimer() {
             clearInterval(state.countdown);
             state.secondsLeft = 0;
+            
             state.countdown = setInterval(() => {
                 state.secondsLeft++;
                 const mins = Math.floor(state.secondsLeft / 60);
@@ -385,14 +282,20 @@
             }, 1000);
         }
 
+        // === LiveKit Логика (из demo.html) ===
         async function connectLiveKit(payload) {
-            if (!window.LivekitClient) throw new Error("LiveKit не загружен");
+            if (!window.LivekitClient) {
+                throw new Error("SDK LiveKit не загружен");
+            }
 
             const lkUrl = payload?.livekit_url;
             const lkToken = payload?.livekit_client_token;
-            if (!lkUrl || !lkToken) throw new Error("Нет данных");
+
+            if (!lkUrl || !lkToken) throw new Error("Нет данных для подключения к LiveKit");
 
             const { Room, RoomEvent } = window.LivekitClient;
+
+            // Отключаемся от предыдущей комнаты если есть
             if (state.room) await state.room.disconnect();
 
             state.room = new Room({
@@ -401,80 +304,105 @@
                 autoSubscribe: true,
             });
 
-            state.room.on(RoomEvent.TrackSubscribed, (track) => {
+            // 1. Обработка видео/аудио
+            state.room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+                console.log(`🎬 Трек получен: ${track.kind}`);
+                
                 if (track.kind === "video") {
-                    ui.videoContainer.innerHTML = '';
+                    // Очистка старого видео
+                    ui.videoContainer.innerHTML = ''; 
                     const el = track.attach();
                     state.videoEl = el;
                     ui.videoContainer.appendChild(el);
                 }
+
                 if (track.kind === "audio") {
                     const el = track.attach();
+                    state.audioEl = el;
                     document.body.appendChild(el);
-                    el.play().catch(() => {});
+                    el.play().catch(e => console.log("Audio autoplay block:", e));
                 }
             });
 
+            // 2. ВАЖНО: Обработка статусов аватара (Data Channel)
             state.room.on(RoomEvent.DataReceived, (payload) => {
                 try {
                     const data = new TextDecoder().decode(payload);
                     const event = JSON.parse(data);
+                    console.log("📨 Event:", event.type);
 
                     if (event.type === 'avatar_start_talking') {
+                        state.isAvatarSpeaking = true;
                         updateStatus('speaking');
+                        // Мьют микрофона пользователя
                         if (state.localMicTrack) state.localMicTrack.mute();
                     }
 
                     if (event.type === 'avatar_stop_talking') {
+                        state.isAvatarSpeaking = false;
                         updateStatus('listening');
+                        // Анмьют микрофона пользователя
                         if (state.localMicTrack) state.localMicTrack.unmute();
                     }
-
-                    if (event.type === 'avatar_message' && event.data?.text) {
-                        addTranscript(event.data.text, 'avatar');
-                    }
                 } catch (e) {
-                    console.error("Data error:", e);
+                    console.error("Data decode error", e);
                 }
             });
 
-            state.room.on(RoomEvent.Disconnected, stopSession);
+            state.room.on(RoomEvent.Disconnected, () => {
+                stopSession();
+            });
 
             await state.room.connect(lkUrl, lkToken);
+            console.log("✅ LiveKit подключен");
+            
+            // Включаем аудио комнаты
             await state.room.startAudio();
         }
 
+        // === Управление сессией ===
         async function startSession() {
             try {
                 ui.startBtn.disabled = true;
                 showScreen('loading');
+                ui.loadingText.textContent = "Получение токена...";
 
+                // 1. Получаем токен сессии
                 const tokenData = await postJSON("/api/token", { language: "ru" });
                 state.sessionId = tokenData.session_id;
                 state.sessionToken = tokenData.session_token;
 
-                const startData = await postJSON("/api/start", { session_token: state.sessionToken });
+                ui.loadingText.textContent = "Запуск аватара...";
+
+                // 2. Старт сессии и получение LiveKit данных
+                const startData = await postJSON("/api/start", { 
+                    session_token: state.sessionToken 
+                });
+                
                 const payload = startData?.data ?? startData;
 
+                // 3. Подключение к LiveKit
+                ui.loadingText.textContent = "Подключение медиа...";
                 await connectLiveKit(payload);
 
+                // 4. Включение микрофона
                 try {
                     state.localMicTrack = await window.LivekitClient.createLocalAudioTrack({
                         echoCancellation: true,
                         noiseSuppression: true
                     });
                     await state.room.localParticipant.publishTrack(state.localMicTrack);
+                    console.log("🎤 Микрофон опубликован");
                 } catch (e) {
-                    alert("Включите микрофон!");
+                    alert("Нужен доступ к микрофону для разговора!");
                 }
 
                 showScreen('chat');
                 startTimer();
-                updateStatus('listening');
-                state.transcripts = [];
-                ui.transcriptList.innerHTML = '';
+                updateStatus('listening'); // По умолчанию слушаем пользователя
 
             } catch (e) {
+                console.error(e);
                 alert("Ошибка: " + e.message);
                 showScreen('welcome');
                 ui.startBtn.disabled = false;
@@ -482,8 +410,10 @@
         }
 
         async function stopSession() {
+            showScreen('thankYou');
             clearInterval(state.countdown);
 
+            // Очистка медиа
             if (state.localMicTrack) {
                 state.localMicTrack.stop();
                 state.localMicTrack = null;
@@ -493,41 +423,35 @@
                 state.room = null;
             }
             if (state.videoEl) state.videoEl.remove();
+            if (state.audioEl) state.audioEl.remove();
 
+            // API остановка
             if (state.sessionId && state.sessionToken) {
                 try {
                     await postJSON("/api/stop", { 
                         session_id: state.sessionId, 
                         session_token: state.sessionToken 
                     });
-                } catch(e) {}
+                } catch(e) { console.log("Stop API error", e); }
             }
 
-            // СОХРАНИТЬ В localStorage
-            localStorage.setItem('last_transcript', JSON.stringify(state.transcripts));
-            console.log("📝 Трансляция:", state.transcripts);
-
-            // ПОКАЗАТЬ ФИНАЛЬНЫЙ ЭКРАН
-            showFinalTranscript();
-            showScreen('thankYou');
             ui.startBtn.disabled = false;
         }
 
+        // === Event Listeners ===
         ui.startBtn.addEventListener('click', startSession);
         ui.closeBtn.addEventListener('click', stopSession);
-        ui.sendMessageBtn.addEventListener('click', sendMessage);
-        ui.chatInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendMessage();
-        });
-        ui.downloadBtn.addEventListener('click', downloadTranscript);
-        ui.copyBtn.addEventListener('click', copyTranscript);
-        ui.reloadBtn.addEventListener('click', () => location.reload());
-        ui.leadForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            alert("Заявка отправлена!");
+        
+        ui.reloadBtn.addEventListener('click', () => {
+            window.location.reload();
         });
 
-        console.log("✨ WOW Widget Ready");
+        document.getElementById('leadForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            alert("Заявка отправлена (демо)!");
+        });
+
+        console.log("✨ WOW Widget Loaded");
     </script>
 </body>
 </html>
