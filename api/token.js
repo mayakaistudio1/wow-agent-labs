@@ -5,7 +5,9 @@ export default async function handler(req, res) {
 
   try {
     const apiKey = process.env.LIVEAVATAR_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: "Missing LIVEAVATAR_API_KEY in Vercel env" });
+    if (!apiKey) {
+      return res.status(500).json({ error: "Missing LIVEAVATAR_API_KEY in Vercel env" });
+    }
 
     // твои значения
     const AVATAR_ID = "9650a758-1085-4d49-8bf3-f347565ec229";
@@ -17,7 +19,7 @@ export default async function handler(req, res) {
       avatar_id: AVATAR_ID,
       avatar_persona: {
         voice_id: VOICE_ID,
-        context_id: CONTEXT_ID `
+        context_id: CONTEXT_ID
       }
     };
 
@@ -41,6 +43,9 @@ export default async function handler(req, res) {
       raw: json
     });
   } catch (e) {
-    return res.status(500).json({ error: "Token handler failed", details: String(e?.message || e) });
+    return res.status(500).json({
+      error: "Token handler failed",
+      details: String(e?.message || e)
+    });
   }
 }
