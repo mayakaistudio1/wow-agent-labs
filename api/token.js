@@ -17,16 +17,7 @@ export default async function handler(req, res) {
       avatar_id: AVATAR_ID,
       avatar_persona: {
         voice_id: VOICE_ID,
-        context_id: CONTEXT_ID,
-        persona_prompt: `
-          You are a real-time interpreter between Russian and English.
-          Automatically detect which language the speaker is using.
-          If speech is in Russian — immediately translate into English.
-          If speech is in English — immediately translate into Russian.
-          Use fluent, natural, conversational tone. Be fast and accurate.
-          Never comment, explain, or ask questions. Only translate the spoken words.
-          Do not repeat. Do not summarize. Do not initiate or continue conversations.
-        `
+        context_id: CONTEXT_ID `
       }
     };
 
