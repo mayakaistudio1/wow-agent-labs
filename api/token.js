@@ -10,9 +10,7 @@ export default async function handler(req, res) {
     // твои значения
     const AVATAR_ID = "9650a758-1085-4d49-8bf3-f347565ec229";
     const VOICE_ID  = "c23719ef-d070-42ee-9cd9-4b867c621671";
-    const CONTEXT_ID= "0af664ad-8b66-4f6e-91ab-3b3245d4d72d";
-
-    const { language = "ru" } = req.body || {};
+    const CONTEXT_ID= "9da17e2b-ebc0-4f5e-a074-c13597b955c3";
 
     const payload = {
       mode: "FULL",
@@ -20,7 +18,15 @@ export default async function handler(req, res) {
       avatar_persona: {
         voice_id: VOICE_ID,
         context_id: CONTEXT_ID,
-        language
+        persona_prompt: `
+          You are a real-time interpreter between Russian and English.
+          Automatically detect which language the speaker is using.
+          If speech is in Russian — immediately translate into English.
+          If speech is in English — immediately translate into Russian.
+          Use fluent, natural, conversational tone. Be fast and accurate.
+          Never comment, explain, or ask questions. Only translate the spoken words.
+          Do not repeat. Do not summarize. Do not initiate or continue conversations.
+        `
       }
     };
 
@@ -38,7 +44,6 @@ export default async function handler(req, res) {
 
     const json = JSON.parse(text);
 
-    // важно: возвращаем и в удобном виде, и raw
     return res.status(200).json({
       session_id: json?.data?.session_id,
       session_token: json?.data?.session_token,
