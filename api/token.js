@@ -18,6 +18,7 @@ export default async function handler(req, res) {
       avatar_id: AVATAR_ID,
       avatar_persona: {
         voice_id: VOICE_ID,
+        language: "auto", // автоматическое распознавание речи
         persona_prompt: `
           You are a real-time interpreter between Russian and English.
           Automatically detect which language the speaker is using.
